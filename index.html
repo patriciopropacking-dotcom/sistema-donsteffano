@@ -220,6 +220,17 @@
     .toast{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--text);color:#fff;padding:11px 18px;border-radius:8px;font-size:13px;font-weight:600;z-index:200;opacity:0;transition:opacity 0.2s;pointer-events:none;}
     .toast.show{opacity:1;}
 
+
+    /* IMAGE UPLOAD */
+    .img-upload-wrap { margin-top: 4px; }
+    .img-preview { width: 100%; height: 120px; object-fit: cover; border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: 6px; display: none; }
+    .img-preview.show { display: block; }
+    .btn-upload-img { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; padding: 8px; border-radius: var(--radius); border: 2px dashed var(--border2); background: var(--page); color: var(--text2); font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font); transition: all 0.15s; }
+    .btn-upload-img:hover { border-color: var(--red); color: var(--red); background: #fff5f5; }
+    .btn-upload-img.loading { opacity: 0.6; cursor: wait; }
+    .prod-card-img { width: 100%; height: 80px; object-fit: cover; border-radius: 6px; margin-bottom: 6px; }
+    .prod-thumb { width: 36px; height: 36px; object-fit: cover; border-radius: 5px; flex-shrink: 0; }
+
     /* ═══════════════════════════════
        MOBILE STYLES
     ═══════════════════════════════ */
@@ -387,6 +398,15 @@
       <div><div class="pv-label">% Markup</div><div class="pv-val" id="pv-markup">—</div></div>
       <div><div class="pv-label">Inversión stock</div><div class="pv-val" id="pv-inv">—</div></div>
     </div>
+    <div class="modal-section">Foto del producto</div>
+    <div class="img-upload-wrap">
+      <img id="img-preview" class="img-preview" src="" alt="Preview" />
+      <label class="btn-upload-img" id="img-upload-label">
+        <i class="ti ti-camera" aria-hidden="true"></i>
+        <span id="img-upload-text">Subir foto</span>
+        <input type="file" id="img-file-input" accept="image/*" style="display:none" onchange="handleImageUpload(event)" />
+      </label>
+    </div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
       <button class="btn-save" onclick="saveProduct()">Guardar</button>
@@ -421,6 +441,7 @@ let currentFilter='all';
 let cart=[], ventas=[], nextVentaId=1;
 let pedidos=[], nextPedidoId=1, stockNotes=[], nextStockNoteId=1;
 let loading=false;
+let currentImageUrl='';
 
 const fmt=n=>'$'+Math.round(n).toLocaleString('es-AR');
 const pct=n=>Math.round(n)+'%';
@@ -570,7 +591,7 @@ function renderStock(){
         const s=getStatus(p.qty,p.min);const pp=getPct(p.qty,p.min);const m=getMargin(p.cost,p.price);
         const qc=s==='critical'?'#C62828':s==='low'?'#E65100':'var(--text)';
         return`<tr>
-          <td><div class="prod-name">${p.name}</div><div class="prod-cat">${p.cat}</div></td>
+          <td><div style="display:flex;align-items:center;gap:8px">${p.image?`<img src="${p.image}" class="prod-thumb" onerror="this.style.display='none'" />`:'<div style="width:36px;flex-shrink:0"></div>'}<div><div class="prod-name">${p.name}</div><div class="prod-cat">${p.cat}</div></div></div></td>
           <td style="color:var(--text2)">${fmt(p.cost)}</td>
           <td style="font-weight:700">${fmt(p.price)}</td>
           <td><span style="font-size:12px;font-weight:700;color:${mColor(m)}">${pct(m)}</span></td>
@@ -630,6 +651,7 @@ function renderVentaGrid(){
     const s=getStatus(p.qty,p.min);const ic=cart.find(c=>c.id===p.id);
     const sl=p.qty===0?`<span class="pc-stock crit">Sin stock</span>`:s==='low'?`<span class="pc-stock warn">Queda: ${p.qty}</span>`:`<span class="pc-stock">Stock: ${p.qty}</span>`;
     return`<div class="prod-card ${p.qty===0?'out':''}" onclick="${p.qty>0?`addToCart(${p.id})`:''}">
+      ${p.image?`<img src="${p.image}" class="prod-card-img" onerror="this.style.display='none'" />`:''}
       <div class="pc-name">${p.name}</div><div class="pc-cat">${p.cat}</div>
       <div class="pc-price">${fmt(p.price)}</div>${sl}
       ${ic?`<div style="font-size:11px;color:var(--red);margin-top:4px;font-weight:700">En carrito: ${ic.qty}</div>`:''}
@@ -809,6 +831,39 @@ async function addStockNote(){const inp=document.getElementById('stocknote-input
 async function toggleStockNote(id){const n=stockNotes.find(x=>x.id===id);if(n)n.done=!n.done;save();await syncToSupabase();renderPizarron();}
 async function deleteStockNote(id){stockNotes=stockNotes.filter(x=>x.id!==id);save();await syncToSupabase();renderPizarron();}
 
+async function handleImageUpload(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const label = document.getElementById('img-upload-label');
+  const text = document.getElementById('img-upload-text');
+  const preview = document.getElementById('img-preview');
+  label.classList.add('loading');
+  text.textContent = 'Subiendo...';
+  try {
+    const ext = file.name.split('.').pop();
+    const fileName = 'prod_' + Date.now() + '.' + ext;
+    const res = await fetch(SB_URL + '/storage/v1/object/productos/' + fileName, {
+      method: 'POST',
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': file.type, 'x-upsert': 'true' },
+      body: file
+    });
+    if(res.ok){
+      currentImageUrl = SB_URL + '/storage/v1/object/public/productos/' + fileName;
+      preview.src = currentImageUrl;
+      preview.classList.add('show');
+      text.textContent = 'Cambiar foto';
+      showToast('✓ Foto subida');
+    } else {
+      showToast('Error al subir la foto');
+      text.textContent = 'Subir foto';
+    }
+  } catch(err) {
+    showToast('Error al subir la foto');
+    text.textContent = 'Subir foto';
+  }
+  label.classList.remove('loading');
+}
+
 function updatePreview(){
   const cost=parseFloat(document.getElementById('f-cost').value)||0;
   const price=parseFloat(document.getElementById('f-price').value)||0;
@@ -819,8 +874,31 @@ function updatePreview(){
   document.getElementById('pv-markup').innerHTML=`<span style="color:${mColor(mu)}">${pct(mu)}</span>`;
   document.getElementById('pv-inv').innerHTML=`<span style="color:#1565C0">${fmt(cost*qty)}</span>`;
 }
-function openModal(){editId=null;document.getElementById('modal-title').textContent='Agregar producto';['f-name','f-cat','f-cost','f-price','f-qty','f-min'].forEach(id=>document.getElementById(id).value='');updatePreview();document.getElementById('modal').classList.add('open');}
-function openEditModal(id){const p=products.find(x=>x.id===id);if(!p)return;editId=id;document.getElementById('modal-title').textContent='Editar producto';document.getElementById('f-name').value=p.name;document.getElementById('f-cat').value=p.cat;document.getElementById('f-cost').value=p.cost;document.getElementById('f-price').value=p.price;document.getElementById('f-qty').value=p.qty;document.getElementById('f-min').value=p.min;updatePreview();document.getElementById('modal').classList.add('open');}
+function openModal(){
+  editId=null; currentImageUrl='';
+  document.getElementById('modal-title').textContent='Agregar producto';
+  ['f-name','f-cat','f-cost','f-price','f-qty','f-min'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('img-preview').classList.remove('show');
+  document.getElementById('img-upload-text').textContent='Subir foto';
+  document.getElementById('img-file-input').value='';
+  updatePreview();document.getElementById('modal').classList.add('open');
+}
+function openEditModal(id){
+  const p=products.find(x=>x.id===id);if(!p)return;
+  editId=id; currentImageUrl=p.image||'';
+  document.getElementById('modal-title').textContent='Editar producto';
+  document.getElementById('f-name').value=p.name;
+  document.getElementById('f-cat').value=p.cat;
+  document.getElementById('f-cost').value=p.cost;
+  document.getElementById('f-price').value=p.price;
+  document.getElementById('f-qty').value=p.qty;
+  document.getElementById('f-min').value=p.min;
+  const preview=document.getElementById('img-preview');
+  if(p.image){preview.src=p.image;preview.classList.add('show');document.getElementById('img-upload-text').textContent='Cambiar foto';}
+  else{preview.classList.remove('show');document.getElementById('img-upload-text').textContent='Subir foto';}
+  document.getElementById('img-file-input').value='';
+  updatePreview();document.getElementById('modal').classList.add('open');
+}
 function closeModal(){document.getElementById('modal').classList.remove('open');}
 function closeOnOverlay(e){if(e.target===document.getElementById('modal'))closeModal();}
 async function saveProduct(){
@@ -831,8 +909,9 @@ async function saveProduct(){
   const qty=parseInt(document.getElementById('f-qty').value)||0;
   const min=parseInt(document.getElementById('f-min').value)||0;
   if(!name){document.getElementById('f-name').focus();return;}
-  if(editId!==null){const p=products.find(x=>x.id===editId);if(p)Object.assign(p,{name,cat,cost,price,qty,min});}
-  else products.push({id:nextId++,name,cat,cost,price,qty,min});
+  const image=currentImageUrl||'';
+  if(editId!==null){const p=products.find(x=>x.id===editId);if(p)Object.assign(p,{name,cat,cost,price,qty,min,image});}
+  else products.push({id:nextId++,name,cat,cost,price,qty,min,image});
   save();await syncToSupabase();closeModal();render();
 }
 async function deleteProduct(id){if(!confirm('¿Eliminar este producto?'))return;products=products.filter(p=>p.id!==id);save();await syncToSupabase();render();}
