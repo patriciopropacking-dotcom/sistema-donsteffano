@@ -219,6 +219,95 @@
     /* TOAST */
     .toast{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--text);color:#fff;padding:11px 18px;border-radius:8px;font-size:13px;font-weight:600;z-index:200;opacity:0;transition:opacity 0.2s;pointer-events:none;}
     .toast.show{opacity:1;}
+
+    /* ═══════════════════════════════
+       MOBILE STYLES
+    ═══════════════════════════════ */
+    @media (max-width: 768px) {
+      /* Hide sidebar, show bottom nav */
+      .sidebar { display: none !important; }
+      .main { margin-left: 0 !important; padding-bottom: 70px; }
+
+      /* Bottom navigation */
+      .bottom-nav { display: flex !important; }
+
+      /* Topbar */
+      .topbar { padding: 12px 16px; }
+      .tb-title { font-size: 16px; }
+      .btn-new { padding: 7px 12px; font-size: 12px; }
+
+      /* Content padding */
+      .content { padding: 14px 14px; }
+
+      /* Metrics - 2 columns on mobile */
+      .metrics { grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
+      .mc { padding: 12px 13px; border-radius: 10px; }
+      .mc-val { font-size: 18px !important; }
+      .mc-label { font-size: 9px !important; }
+      .mc-sub { font-size: 10px !important; }
+      .mc-bg-icon { font-size: 36px !important; }
+
+      /* Table - show only key columns on mobile */
+      .hide-mobile { display: none !important; }
+      table { min-width: unset !important; }
+      th, td { padding: 10px 10px !important; font-size: 12px !important; }
+
+      /* Search */
+      .search-input { font-size: 14px; padding: 10px 12px 10px 34px; }
+
+      /* Filter buttons */
+      .filter-btn { padding: 4px 10px; font-size: 11px; }
+      .section-header { margin-bottom: 8px; }
+
+      /* Venta layout - single column */
+      .venta-layout { grid-template-columns: 1fr !important; }
+      .prod-grid { max-height: 320px; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)) !important; }
+      .cart-box { position: static !important; }
+
+      /* Pizarron */
+      .pizarron-wrap { grid-template-columns: 1fr !important; }
+
+      /* Alerts */
+      .alert { font-size: 12px; }
+
+      /* Modal */
+      .modal { width: 95vw !important; padding: 1.2rem !important; }
+      .field-grid { grid-template-columns: 1fr !important; }
+    }
+
+    /* Bottom Navigation Bar */
+    .bottom-nav {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--sidebar);
+      border-top: 1px solid rgba(255,255,255,0.1);
+      z-index: 100;
+      padding: 0;
+    }
+    .bn-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 4px 12px;
+      cursor: pointer;
+      color: rgba(255,255,255,0.4);
+      font-size: 10px;
+      font-weight: 600;
+      gap: 4px;
+      transition: color 0.15s;
+      border: none;
+      background: transparent;
+      font-family: var(--font);
+    }
+    .bn-item i { font-size: 20px; }
+    .bn-item.active { color: var(--red); }
+    .bn-item span { font-size: 10px; }
+
   </style>
 </head>
 <body>
@@ -412,10 +501,16 @@ function hideLoadingScreen(){
 
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
 
-function setView(v,el){
+function setView(v,el,source){
   currentView=v;
+  // Update sidebar
   document.querySelectorAll('.sb-item').forEach(n=>n.classList.remove('active'));
-  if(el)el.classList.add('active');
+  const sidebarItem = document.getElementById('nav-'+v);
+  if(sidebarItem) sidebarItem.classList.add('active');
+  // Update bottom nav
+  document.querySelectorAll('.bn-item').forEach(n=>n.classList.remove('active'));
+  const bnItem = document.getElementById('bn-'+v);
+  if(bnItem) bnItem.classList.add('active');
   const titles={stock:'Stock',venta:'Registrar venta',historial:'Historial de ventas',financiero:'Análisis financiero',pizarron:'Pizarrón'};
   document.getElementById('topbar-title').textContent=titles[v];
   document.getElementById('btn-nuevo').style.display=(v==='stock')?'flex':'none';
@@ -470,7 +565,7 @@ function renderStock(){
       <input class="search-input" id="stock-search-input" placeholder="Buscar producto o categoría..." />
     </div>
     <div class="table-wrap"><table>
-      <thead><tr><th>Producto</th><th>Costo</th><th>Venta</th><th>Margen</th><th>Cant.</th><th>Nivel</th><th>Estado</th><th></th></tr></thead>
+      <thead><tr><th>Producto</th><th>Costo</th><th>Venta</th><th>Margen</th><th>Cant.</th><th class="hide-mobile">Nivel</th><th class="hide-mobile">Estado</th><th></th></tr></thead>
       <tbody>${filtered.length===0?`<tr><td colspan="8" class="empty">${products.length===0?'Agregá tu primer producto.':'Sin resultados.'}</td></tr>`:filtered.map(p=>{
         const s=getStatus(p.qty,p.min);const pp=getPct(p.qty,p.min);const m=getMargin(p.cost,p.price);
         const qc=s==='critical'?'#C62828':s==='low'?'#E65100':'var(--text)';
@@ -480,8 +575,8 @@ function renderStock(){
           <td style="font-weight:700">${fmt(p.price)}</td>
           <td><span style="font-size:12px;font-weight:700;color:${mColor(m)}">${pct(m)}</span></td>
           <td><span style="font-weight:800;font-size:17px;color:${qc}">${p.qty}</span></td>
-          <td style="min-width:80px"><div style="font-size:11px;color:var(--text3);margin-bottom:3px">${pp}%</div><div class="progress-bar"><div class="${s==='ok'?'pf-ok':s==='low'?'pf-low':'pf-crit'}" style="width:${pp}%"></div></div></td>
-          <td><span class="badge ${s==='ok'?'b-ok':s==='low'?'b-low':'b-crit'}"><span class="dot ${s==='ok'?'d-ok':s==='low'?'d-low':'d-crit'}"></span>${getLabel(s)}</span></td>
+          <td class="hide-mobile" style="min-width:80px"><div style="font-size:11px;color:var(--text3);margin-bottom:3px">${pp}%</div><div class="progress-bar"><div class="${s==='ok'?'pf-ok':s==='low'?'pf-low':'pf-crit'}" style="width:${pp}%"></div></div></td>
+          <td class="hide-mobile"><span class="badge ${s==='ok'?'b-ok':s==='low'?'b-low':'b-crit'}"><span class="dot ${s==='ok'?'d-ok':s==='low'?'d-low':'d-crit'}"></span>${getLabel(s)}</span></td>
           <td><div class="actions-col">
             <button class="icon-btn" onclick="openEditModal(${p.id})" title="Editar"><i class="ti ti-edit" aria-hidden="true"></i></button>
             <button class="icon-btn del" onclick="deleteProduct(${p.id})" title="Eliminar"><i class="ti ti-trash" aria-hidden="true"></i></button>
@@ -776,5 +871,30 @@ function importBackup(e){
 (async()=>{ await load(); render(); })();
 setInterval(updateDate,30000);
 </script>
+
+<!-- BOTTOM NAV (mobile) -->
+<div class="bottom-nav" id="bottom-nav">
+  <button class="bn-item active" id="bn-stock" onclick="setView('stock',this,'bn')">
+    <i class="ti ti-package" aria-hidden="true"></i>
+    <span>Stock</span>
+  </button>
+  <button class="bn-item" id="bn-venta" onclick="setView('venta',this,'bn')">
+    <i class="ti ti-shopping-cart" aria-hidden="true"></i>
+    <span>Venta</span>
+  </button>
+  <button class="bn-item" id="bn-historial" onclick="setView('historial',this,'bn')">
+    <i class="ti ti-clock" aria-hidden="true"></i>
+    <span>Historial</span>
+  </button>
+  <button class="bn-item" id="bn-financiero" onclick="setView('financiero',this,'bn')">
+    <i class="ti ti-chart-bar" aria-hidden="true"></i>
+    <span>Finanzas</span>
+  </button>
+  <button class="bn-item" id="bn-pizarron" onclick="setView('pizarron',this,'bn')">
+    <i class="ti ti-clipboard" aria-hidden="true"></i>
+    <span>Pizarrón</span>
+  </button>
+</div>
+
 </body>
 </html>
