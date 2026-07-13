@@ -350,6 +350,9 @@
     <div class="sb-item" id="nav-pizarron" onclick="setView('pizarron',this)">
       <i class="ti ti-clipboard sb-icon-nav" aria-hidden="true"></i> Pizarrón
     </div>
+    <div class="sb-item" id="nav-compras" onclick="setView('compras',this)">
+      <i class="ti ti-receipt sb-icon-nav" aria-hidden="true"></i> Compras
+    </div>
   </nav>
   <div class="sb-footer">
     <div class="sb-time" id="footer-time">—</div>
@@ -442,6 +445,7 @@ let cart=[], ventas=[], nextVentaId=1;
 let pedidos=[], nextPedidoId=1, stockNotes=[], nextStockNoteId=1;
 let loading=false;
 let currentImageUrl='';
+let compras=[], nextCompraId=1;
 
 const fmt=n=>'$'+Math.round(n).toLocaleString('es-AR');
 const pct=n=>Math.round(n)+'%';
@@ -455,7 +459,7 @@ const nowStr=()=>{const d=new Date();return`${d.getDate()}/${d.getMonth()+1}/${d
 
 function save(){
   // Keep local backup too
-  localStorage.setItem('ds3',JSON.stringify({products,ventas,nextId,nextVentaId,pedidos,nextPedidoId,stockNotes,nextStockNoteId}));
+  localStorage.setItem('ds3',JSON.stringify({products,ventas,nextId,nextVentaId,pedidos,nextPedidoId,stockNotes,nextStockNoteId,compras,nextCompraId}));
 }
 async function syncToSupabase(){
   try{
@@ -532,7 +536,7 @@ function setView(v,el,source){
   document.querySelectorAll('.bn-item').forEach(n=>n.classList.remove('active'));
   const bnItem = document.getElementById('bn-'+v);
   if(bnItem) bnItem.classList.add('active');
-  const titles={stock:'Stock',venta:'Registrar venta',historial:'Historial de ventas',financiero:'Análisis financiero',pizarron:'Pizarrón'};
+  const titles={stock:'Stock',venta:'Registrar venta',historial:'Historial de ventas',financiero:'Análisis financiero',pizarron:'Pizarrón',compras:'Compras / Facturas'};
   document.getElementById('topbar-title').textContent=titles[v];
   document.getElementById('btn-nuevo').style.display=(v==='stock')?'flex':'none';
   render();
@@ -947,6 +951,120 @@ function importBackup(e){
   };
   reader.readAsText(file);
 }
+function renderCompras(){
+  const totalMes=compras.filter(c=>{
+    const d=new Date(c.fecha);const now=new Date();
+    return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();
+  }).reduce((a,c)=>a+c.monto,0);
+  const totalAll=compras.reduce((a,c)=>a+c.monto,0);
+
+  document.getElementById('view-area').innerHTML=`
+    <div class="metrics">
+      <div class="mc mc-red"><i class="ti ti-receipt mc-bg-icon"></i><div class="mc-label">Total compras</div><div class="mc-val">${compras.length}</div><div class="mc-sub">facturas</div></div>
+      <div class="mc mc-orange"><i class="ti ti-coin mc-bg-icon"></i><div class="mc-label">Gastado este mes</div><div class="mc-val">${fmt(totalMes)}</div></div>
+      <div class="mc mc-navy"><i class="ti ti-chart-bar mc-bg-icon"></i><div class="mc-label">Gasto total</div><div class="mc-val">${fmt(totalAll)}</div></div>
+    </div>
+    <div class="compra-form">
+      <div class="compra-form-title"><i class="ti ti-plus" aria-hidden="true"></i> Nueva compra / factura</div>
+      <div class="compra-fields">
+        <div class="compra-field"><label>Proveedor</label><input type="text" id="cp-proveedor" placeholder="Ej: Distribuidora Norte" /></div>
+        <div class="compra-field"><label>Monto total ($)</label><input type="number" id="cp-monto" placeholder="0" min="0" /></div>
+        <div class="compra-field"><label>Fecha</label><input type="date" id="cp-fecha" value="${new Date().toISOString().split('T')[0]}" /></div>
+        <div class="compra-field"><label>Notas (opcional)</label><input type="text" id="cp-nota" placeholder="Ej: Factura B N°00123" /></div>
+      </div>
+      <img id="cp-img-preview" class="img-factura-preview" src="" alt="Preview factura" />
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <label class="btn-upload-img" id="cp-img-label" style="flex:1;min-width:140px;">
+          <i class="ti ti-camera" aria-hidden="true"></i>
+          <span id="cp-img-text">Foto de la factura</span>
+          <input type="file" id="cp-img-input" accept="image/*" style="display:none" onchange="handleFacturaUpload(event)" />
+        </label>
+        <button class="btn-guardar-compra" onclick="guardarCompra()"><i class="ti ti-check" aria-hidden="true"></i> Guardar compra</button>
+      </div>
+    </div>
+    <div class="section-title" style="margin-bottom:12px">Historial de compras</div>
+    ${compras.length===0?'<div class="no-compras">No hay compras registradas todavía.</div>':
+      compras.map(c=>{
+        const d=new Date(c.fecha);
+        const ds=`${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`;
+        return`<div class="compra-item">
+          <div class="compra-header">
+            <div style="display:flex;align-items:flex-start;gap:10px">
+              ${c.imagen?`<img src="${c.imagen}" class="compra-img-thumb" onclick="openLightbox('${c.imagen}')" onerror="this.style.display='none'" />`:''}
+              <div>
+                <div class="compra-proveedor">${c.proveedor}</div>
+                <div class="compra-fecha">${ds}</div>
+                ${c.nota?`<div class="compra-nota">${c.nota}</div>`:''}
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <div class="compra-monto">${fmt(c.monto)}</div>
+              <button class="icon-btn del" onclick="deleteCompra(${c.id})" title="Eliminar"><i class="ti ti-trash" aria-hidden="true"></i></button>
+            </div>
+          </div>
+          ${c.imagen?`<img src="${c.imagen}" class="compra-img" onclick="openLightbox('${c.imagen}')" onerror="this.style.display='none'" />`:''}
+        </div>`;
+      }).join('')}
+  `;
+}
+
+let currentFacturaUrl='';
+async function handleFacturaUpload(e){
+  const file=e.target.files[0];if(!file)return;
+  const label=document.getElementById('cp-img-label');
+  const text=document.getElementById('cp-img-text');
+  const preview=document.getElementById('cp-img-preview');
+  label.classList.add('loading');text.textContent='Subiendo...';
+  try{
+    const ext=file.name.split('.').pop();
+    const fileName='factura_'+Date.now()+'.'+ext;
+    const res=await fetch(SB_URL+'/storage/v1/object/productos/'+fileName,{
+      method:'POST',headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':file.type,'x-upsert':'true'},body:file
+    });
+    if(res.ok){
+      currentFacturaUrl=SB_URL+'/storage/v1/object/public/productos/'+fileName;
+      preview.src=currentFacturaUrl;preview.classList.add('show');
+      text.textContent='Cambiar foto';showToast('✓ Foto subida');
+    }else{showToast('Error al subir');text.textContent='Foto de la factura';}
+  }catch(err){showToast('Error al subir');text.textContent='Foto de la factura';}
+  label.classList.remove('loading');
+}
+
+async function guardarCompra(){
+  const proveedor=document.getElementById('cp-proveedor').value.trim();
+  const monto=parseFloat(document.getElementById('cp-monto').value)||0;
+  const fecha=document.getElementById('cp-fecha').value||new Date().toISOString().split('T')[0];
+  const nota=document.getElementById('cp-nota').value.trim();
+  if(!proveedor){document.getElementById('cp-proveedor').focus();return;}
+  const compra={id:nextCompraId++,proveedor,monto,fecha,nota,imagen:currentFacturaUrl};
+  compras.unshift(compra);
+  currentFacturaUrl='';
+  save();
+  showToast('✓ Compra registrada');
+  renderCompras();
+}
+
+function deleteCompra(id){
+  if(!confirm('¿Eliminar esta compra?'))return;
+  compras=compras.filter(c=>c.id!==id);save();renderCompras();showToast('Compra eliminada');
+}
+
+function openLightbox(src){
+  let lb=document.getElementById('lightbox');
+  if(!lb){
+    lb=document.createElement('div');lb.className='lightbox';lb.id='lightbox';
+    lb.innerHTML='<button class="lightbox-close" onclick="closeLightbox()"><i class="ti ti-x"></i></button><img id="lightbox-img" src="" />';
+    lb.onclick=function(e){if(e.target===lb)closeLightbox();};
+    document.body.appendChild(lb);
+  }
+  document.getElementById('lightbox-img').src=src;
+  lb.classList.add('open');
+}
+function closeLightbox(){
+  const lb=document.getElementById('lightbox');
+  if(lb)lb.classList.remove('open');
+}
+
 (async()=>{ await load(); render(); })();
 setInterval(updateDate,30000);
 </script>
@@ -972,6 +1090,10 @@ setInterval(updateDate,30000);
   <button class="bn-item" id="bn-pizarron" onclick="setView('pizarron',this,'bn')">
     <i class="ti ti-clipboard" aria-hidden="true"></i>
     <span>Pizarrón</span>
+  </button>
+  <button class="bn-item" id="bn-compras" onclick="setView('compras',this,'bn')">
+    <i class="ti ti-receipt" aria-hidden="true"></i>
+    <span>Compras</span>
   </button>
 </div>
 
