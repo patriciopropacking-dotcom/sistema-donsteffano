@@ -556,7 +556,7 @@ function updateDate(){
   document.getElementById('footer-stock').textContent=fmt(products.reduce((a,p)=>a+p.price*p.qty,0));
 }
 
-function render(){updateDate();if(currentView==='stock')renderStock();else if(currentView==='venta')renderVenta();else if(currentView==='historial')renderHistorial();else if(currentView==='financiero')renderFinanciero();else renderPizarron();}
+function render(){updateDate();if(currentView==='stock')renderStock();else if(currentView==='venta')renderVenta();else if(currentView==='historial')renderHistorial();else if(currentView==='financiero')renderFinanciero();else if(currentView==='compras')renderCompras();else renderPizarron();}
 
 function renderStock(){
   const q=stockSearch.toLowerCase();
