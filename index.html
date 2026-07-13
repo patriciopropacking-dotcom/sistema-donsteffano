@@ -939,7 +939,7 @@ function exportBackup(){
 function importBackup(e){
   const file = e.target.files[0]; if(!file) return;
   const reader = new FileReader();
-  reader.onload = function(ev){
+  reader.onload = async function(ev){
     try{
       const d = JSON.parse(ev.target.result);
       if(!d.products) throw new Error('Archivo inválido');
@@ -951,8 +951,13 @@ function importBackup(e){
       nextPedidoId = d.nextPedidoId || 1;
       stockNotes = d.stockNotes || [];
       nextStockNoteId = d.nextStockNoteId || 1;
-      save(); render();
-      showToast('✓ Datos importados correctamente');
+      compras = d.compras || [];
+      nextCompraId = d.nextCompraId || 1;
+      save();
+      showToast('Subiendo datos a la nube...');
+      await syncToSupabase();
+      render();
+      showToast('✓ Datos importados y sincronizados a la nube');
     }catch(err){ alert('Error al importar: archivo inválido'); }
   };
   reader.readAsText(file);
