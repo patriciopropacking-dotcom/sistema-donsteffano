@@ -319,6 +319,12 @@
     .bn-item.active { color: var(--red); }
     .bn-item span { font-size: 10px; }
 
+    .lightbox{display:none !important;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9999;align-items:center;justify-content:center;}
+    .lightbox.open{display:flex !important;}
+    .lightbox img{max-width:95vw;max-height:85vh;border-radius:8px;object-fit:contain;}
+    .lightbox-close{position:fixed;top:16px;right:16px;color:#fff;font-size:20px;cursor:pointer;background:rgba(0,0,0,0.6);border:none;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;z-index:10000;}
+    .btn-ver-factura{display:inline-flex;align-items:center;gap:5px;margin-top:8px;padding:6px 12px;border-radius:6px;border:1px solid var(--border2);background:var(--page);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font);}
+    .btn-ver-factura:hover{background:var(--border);color:var(--text);}
   </style>
 </head>
 <body>
@@ -1002,7 +1008,7 @@ function renderCompras(){
               <button class="icon-btn del" onclick="deleteCompra(${c.id})" title="Eliminar"><i class="ti ti-trash" aria-hidden="true"></i></button>
             </div>
           </div>
-          ${c.imagen?`<img src="${c.imagen}" class="compra-img" onclick="openLightbox('${c.imagen}')" onerror="this.style.display='none'" />`:''}
+          ${c.imagen?`<button onclick="openLightbox('${c.imagen}')" style="display:flex;align-items:center;gap:5px;margin-top:8px;padding:6px 12px;border-radius:6px;border:1px solid var(--border2);background:var(--page);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font);"><i class='ti ti-photo' style='font-size:14px'></i> Ver factura</button>`:''}
         </div>`;
       }).join('')}
   `;
@@ -1042,6 +1048,8 @@ async function guardarCompra(){
   save();
   showToast('✓ Compra registrada');
   renderCompras();
+  // close lightbox if open
+  closeLightbox();
 }
 
 function deleteCompra(id){
@@ -1049,6 +1057,10 @@ function deleteCompra(id){
   compras=compras.filter(c=>c.id!==id);save();renderCompras();showToast('Compra eliminada');
 }
 
+function closeLightbox(){
+  const lb=document.getElementById('lightbox');
+  if(lb){lb.classList.remove('open');lb.style.display='none';}
+}
 function openLightbox(src){
   let lb=document.getElementById('lightbox');
   if(!lb){
@@ -1058,11 +1070,8 @@ function openLightbox(src){
     document.body.appendChild(lb);
   }
   document.getElementById('lightbox-img').src=src;
+  lb.style.display='flex';
   lb.classList.add('open');
-}
-function closeLightbox(){
-  const lb=document.getElementById('lightbox');
-  if(lb)lb.classList.remove('open');
 }
 
 (async()=>{ await load(); render(); })();
