@@ -468,8 +468,7 @@ function save(){
   localStorage.setItem('ds3',JSON.stringify({products,ventas,nextId,nextVentaId,pedidos,nextPedidoId,stockNotes,nextStockNoteId,compras,nextCompraId}));
 }
 async function sbUpsertBatch(table, rows){
-  // Split into chunks of 50 to avoid request size limits
-  const chunkSize = 50;
+  const chunkSize = 40;
   for(let i = 0; i < rows.length; i += chunkSize){
     const chunk = rows.slice(i, i + chunkSize);
     const r = await fetch(SB_URL+'/rest/v1/'+table, {
@@ -479,25 +478,53 @@ async function sbUpsertBatch(table, rows){
     });
     if(!r.ok){
       const err = await r.text();
-      console.warn('Supabase batch error:', err);
+      console.warn('Supabase batch error on '+table+':', err);
     }
+    // Small delay between batches
+    await new Promise(r=>setTimeout(r,100));
   }
+}
+
+function normalizeProducts(arr){
+  return arr.map(p=>({
+    id: p.id||0,
+    name: p.name||'',
+    cat: p.cat||'General',
+    cost: Number(p.cost)||0,
+    price: Number(p.price)||0,
+    qty: Number(p.qty)||0,
+    min: Number(p.min)||0,
+    image: p.image||''
+  }));
+}
+function normalizeVentas(arr){
+  return arr.map(v=>({
+    id: v.id||0,
+    fecha: v.fecha||'',
+    items: v.items||[],
+    total: Number(v.total)||0,
+    costo: Number(v.costo)||0,
+    ganancia: Number(v.ganancia)||0
+  }));
+}
+function normalizePedidos(arr){
+  return arr.map(p=>({id:p.id||0,text:p.text||'',time:p.time||'',done:!!p.done}));
+}
+function normalizeStockNotes(arr){
+  return arr.map(n=>({id:n.id||0,text:n.text||'',time:n.time||'',done:!!n.done}));
 }
 
 async function syncToSupabase(){
   try{
-    // Delete all existing data
     await sbDeleteAll('products');
     await sbDeleteAll('ventas');
     await sbDeleteAll('pedidos');
     await sbDeleteAll('stock_notes');
-    // Wait a moment for deletes to complete
-    await new Promise(r=>setTimeout(r,300));
-    // Insert in batches
-    if(products.length) await sbUpsertBatch('products', products);
-    if(ventas.length) await sbUpsertBatch('ventas', ventas);
-    if(pedidos.length) await sbUpsertBatch('pedidos', pedidos);
-    if(stockNotes.length) await sbUpsertBatch('stock_notes', stockNotes);
+    await new Promise(r=>setTimeout(r,500));
+    if(products.length) await sbUpsertBatch('products', normalizeProducts(products));
+    if(ventas.length) await sbUpsertBatch('ventas', normalizeVentas(ventas));
+    if(pedidos.length) await sbUpsertBatch('pedidos', normalizePedidos(pedidos));
+    if(stockNotes.length) await sbUpsertBatch('stock_notes', normalizeStockNotes(stockNotes));
     console.log('Supabase sync OK - products:', products.length);
   }catch(e){console.warn('Supabase sync error:',e);}
 }
