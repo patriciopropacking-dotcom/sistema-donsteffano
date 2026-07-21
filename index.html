@@ -757,6 +757,11 @@ function renderVenta(){
           <div class="cart-row"><span>Subtotal</span><span class="val">${fmt(total)}</span></div>
           <div class="cart-row gan"><span>Ganancia</span><span class="val">${fmt(gan)}</span></div>
           <div class="cart-row total"><span class="lbl">Total</span><span class="val">${fmt(total)}</span></div>
+          <div class="cart-divider"></div>
+          <div style="margin-bottom:10px">
+            <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:4px">Fecha de la venta</div>
+            <input type="date" id="venta-fecha" value="${new Date().toISOString().split('T')[0]}" style="width:100%;padding:7px 10px;border-radius:7px;border:1px solid var(--border2);background:var(--page);font-size:13px;font-family:var(--font);color:var(--text);" />
+          </div>
           <button class="btn-vender" onclick="confirmarVenta()">Confirmar venta</button>
           <button class="btn-limpiar" onclick="cart=[];renderVenta()">Limpiar carrito</button>
         `:''}
@@ -777,7 +782,11 @@ function renderVenta(){
 function addToCart(id){const p=products.find(x=>x.id===id);if(!p||p.qty===0)return;const ic=cart.find(c=>c.id===id);if(ic){if(ic.qty<p.qty)ic.qty++;else{showToast('No hay más stock');return;}}else cart.push({id:p.id,name:p.name,price:p.price,cost:p.cost,qty:1});renderVenta();}
 function changeQty(id,delta){const item=cart.find(c=>c.id===id);const prod=products.find(p=>p.id===id);if(!item)return;item.qty+=delta;if(item.qty>prod.qty){item.qty=prod.qty;showToast('Límite de stock');}if(item.qty<=0)cart=cart.filter(c=>c.id!==id);renderVenta();}
 function removeFromCart(id){cart=cart.filter(c=>c.id!==id);renderVenta();}
-async function confirmarVenta(){if(!cart.length)return;const v={id:nextVentaId++,fecha:new Date().toISOString(),items:cart.map(i=>({...i})),total:cart.reduce((a,i)=>a+i.price*i.qty,0),costo:cart.reduce((a,i)=>a+i.cost*i.qty,0),ganancia:cart.reduce((a,i)=>a+(i.price-i.cost)*i.qty,0)};ventas.unshift(v);cart.forEach(i=>{const p=products.find(x=>x.id===i.id);if(p)p.qty=Math.max(0,p.qty-i.qty);});cart=[];save();await syncToSupabase();showToast(`✓ Venta #${v.id} — ${fmt(v.total)}`);renderVenta();}
+async function confirmarVenta(){if(!cart.length)return;
+  const fechaInput=document.getElementById('venta-fecha');
+  const fechaStr=fechaInput?fechaInput.value:'';
+  const fechaFinal=fechaStr?new Date(fechaStr+'T12:00:00').toISOString():new Date().toISOString();
+  const v={id:nextVentaId++,fecha:fechaFinal,items:cart.map(i=>({...i})),total:cart.reduce((a,i)=>a+i.price*i.qty,0),costo:cart.reduce((a,i)=>a+i.cost*i.qty,0),ganancia:cart.reduce((a,i)=>a+(i.price-i.cost)*i.qty,0)};ventas.unshift(v);cart.forEach(i=>{const p=products.find(x=>x.id===i.id);if(p)p.qty=Math.max(0,p.qty-i.qty);});cart=[];save();await syncToSupabase();showToast(`✓ Venta #${v.id} — ${fmt(v.total)}`);renderVenta();}
 
 function renderHistorial(){
   const hoy=new Date();hoy.setHours(0,0,0,0);
